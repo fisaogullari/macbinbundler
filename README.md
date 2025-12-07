@@ -18,7 +18,7 @@ If you desire to build yourself, you can simply run:
 
 `cargo build --release`
 
-or
+or (optional for installing to cargo path):
 
 `cargo install --path .`
 
@@ -32,7 +32,7 @@ You should run following commands:
 
 # Usage
 
-Macbinbundler is quite simple to use. You can run following command to print out usage info.
+Macbinbundler is quite simple to use. You can run following command to print out usage info:
 
 `macbinbundler -h`
 
@@ -43,7 +43,7 @@ For instance following command will copy the executable `pdftoppm` to `~/Project
 
 `macbinbundler -i /opt/homebrew/bin/pdftoppm -o ~/Projects/foo`
 
-Also custom dependeny folder can be given like so (Note: Dependency folder must be relevant to destination folder!):
+Also custom dependency folder can be given like so (Note: Dependency folder must be relevant to destination folder!):
 
 `macbinbundler -i /opt/homebrew/bin/pdftoppm -o ~/Projects/foo/bar -d ../Frameworks`
 
