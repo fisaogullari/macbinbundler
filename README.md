@@ -5,15 +5,19 @@ Macbinbundler is a simple cli tool copies of an executable or a dynamic library 
 # Installation
 
 Macbinbundler can be installed with `Homebrew`:
-**Install with Brew**
+
 `brew install dylibbundler`
 
 If you desire to build yourself, you can simply run:
 
 `git clone https://github.com/fisaogullari/macbinbundler.git`
+
 `cd macbinbundler`
+
 `cargo build --release`
+
 or
+
 `cargo install --path .`
 
 # Usage
