@@ -11,6 +11,7 @@ pub struct Binary {
     install_name_id: Option<String>,
     dest_folder_path: Option<PathBuf>,
     dest_file_path: Option<PathBuf>,
+    libs_path: Option<PathBuf>,
     rpath: Option<String>,
     libs: Vec<Binary>,
 }
@@ -18,10 +19,7 @@ pub struct Binary {
 impl Binary {
     pub fn new(file_path: PathBuf, is_executable: bool, is_base: bool) -> Result<Self> {
         if !file_path.is_file() || !file_path.exists() {
-            return Err(anyhow!(
-                "Path not exists or a file: {}",
-                file_path.display()
-            ));
+            return Err(anyhow!("Path not exist or a file: {}", file_path.display()));
         }
 
         Ok(Binary {
@@ -32,17 +30,13 @@ impl Binary {
         })
     }
 
-    pub fn run(&mut self) -> Result<()> {
-        if self.dest_folder_path.is_none() {
-            return Err(anyhow!(
-                "No destination path found! Set destination folder first!"
-            ));
-        }
+    pub fn run(&mut self, dest_folder: &Path, libs_path: Option<&Path>) -> Result<()> {
         self.get_libs()?;
         self.resolve_symlinks()?;
         self.change_install_names_as_rpath()?;
         log::trace!("Binary Structure:\n {:#?}", self);
-        self.resolve_dest_paths()?;
+        self.set_libs_path(libs_path);
+        self.set_dest_folder(dest_folder);
         self.copy_to_dest()?;
         self.fix_install_names()?;
         self.sign_all()?;
@@ -50,11 +44,26 @@ impl Binary {
         Ok(())
     }
 
-    pub fn set_dest_folder(&mut self, dest_folder: &Path) {
+    fn set_libs_path(&mut self, libs_path: Option<&Path>) {
+        if let Some(libs_path) = libs_path {
+            self.libs_path = Some(libs_path.to_path_buf());
+        } else {
+            self.libs_path = Some(PathBuf::from("libs"))
+        }
+        for lib in &mut self.libs {
+            let _ = lib.set_libs_path(libs_path);
+        }
+    }
+
+    fn set_dest_folder(&mut self, dest_folder: &Path) {
         if self.is_base {
             self.dest_folder_path = Some(dest_folder.to_path_buf());
         } else {
-            self.dest_folder_path = Some(dest_folder.join("libs"));
+            if let Some(ref libs_path) = self.libs_path {
+                self.dest_folder_path = Some(dest_folder.join(libs_path));
+            } else {
+                self.dest_folder_path = Some(dest_folder.join("libs"));
+            }
         }
 
         for lib in &mut self.libs {
@@ -137,20 +146,6 @@ impl Binary {
         Ok(())
     }
 
-    fn resolve_dest_paths(&mut self) -> Result<()> {
-        let Some(ref dest_folder) = self.dest_folder_path else {
-            return Err(anyhow!(
-                "No destination folder found for: {}",
-                self.file_path.display()
-            ));
-        };
-
-        for lib in &mut self.libs {
-            lib.set_dest_folder(dest_folder);
-        }
-        Ok(())
-    }
-
     fn copy_to_dest(&mut self) -> Result<()> {
         log::debug!("Copying: {}", self.file_path.display());
         let Some(ref dest_folder_path) = self.dest_folder_path else {
@@ -203,9 +198,13 @@ impl Binary {
         }
 
         if self.is_base {
-            let _ = add_rpath(dest_file_path, "@loader_path/libs")?;
+            let Some(ref libs_path) = self.libs_path else {
+                return Err(anyhow!("No path found for libraries"));
+            };
+            let rpath = PathBuf::from("@loader_path").join(libs_path);
+            let _ = add_rpath(dest_file_path, &rpath)?;
         } else {
-            let _ = add_rpath(dest_file_path, "@loader_path")?;
+            let _ = add_rpath(dest_file_path, Path::new("@loader_path"))?;
         }
 
         for lib in &self.libs {
@@ -250,16 +249,35 @@ impl Binary {
     }
 
     fn sign_all(&self) -> Result<()> {
-        let Some(ref dest_path) = self.dest_file_path else {
+        let Some(ref base_dest_path) = self.dest_file_path else {
             return Err(anyhow!(
                 "Error while retrieving destionation path of: {}",
                 self.file_path.display()
             ));
         };
-        sign_binary(dest_path)?;
 
-        for lib in &self.libs {
-            let _ = lib.sign_all()?;
+        let Some(ref libs_path) = self.libs_path else {
+            return Err(anyhow!(
+                "Error while retrieving libraries path of: {}",
+                self.file_path.display()
+            ));
+        };
+
+        sign_binary(base_dest_path)?;
+
+        let Some(ref dest_folder_path) = self.dest_folder_path else {
+            return Err(anyhow!(
+                "Error while retrieving destionation folder path of: {}",
+                self.file_path.display()
+            ));
+        };
+
+        for lib in std::fs::read_dir(dest_folder_path.join(libs_path))? {
+            let lib_path = lib?.path();
+            match check_input_file(&lib_path)? {
+                BinType::Dylib(_) => sign_binary(&lib_path)?,
+                _ => log::debug!("Not dynamic library, skipping signing..."),
+            };
         }
         Ok(())
     }

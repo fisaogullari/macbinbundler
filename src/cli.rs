@@ -17,6 +17,13 @@ pub fn init_cli() -> clap::ArgMatches {
             .required(true)
             .help("Path of the destination folder"),
     );
+
+    let parser = parser.arg(
+        clap::Arg::new("LIBS_PATH")
+            .short('d')
+            .long("deps-path")
+            .help("Custom path for libraries.\n<Relative to the destination folder>"),
+    );
     let parser = parser.arg(
         clap::Arg::new("LOG_LEVEL")
             .short('l')

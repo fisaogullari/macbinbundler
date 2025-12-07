@@ -37,6 +37,13 @@ fn main() -> anyhow::Result<()> {
         ));
     };
 
+    let Ok(libs_path) = cli.try_get_one::<String>("LIBS_PATH") else {
+        // TODO: Add the github link to the error.
+        return Err(anyhow!(
+            "Internal Logic Error: Failed to retrieve required argument 'LIBS_PATH' after argument validation. Please report an issue."
+        ));
+    };
+
     let binary_path = PathBuf::from(binary_path);
     let bundle_path = PathBuf::from(bundle_path);
 
@@ -57,8 +64,11 @@ fn main() -> anyhow::Result<()> {
         BinType::Dylib(_) => Binary::new(binary_path, false, true)?,
         _ => return Err(anyhow!("Input file not recognized!")),
     };
-    binary.set_dest_folder(&bundle_path);
-    binary.run()?;
+    if libs_path.is_some() {
+        binary.run(&bundle_path, Some(std::path::Path::new(libs_path.unwrap())))?;
+    } else {
+        binary.run(&bundle_path, None)?;
+    }
     Ok(())
 }
 

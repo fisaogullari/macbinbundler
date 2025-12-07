@@ -282,7 +282,7 @@ pub fn fix_install_name(file_path: &Path, old: &str, new: &str) -> Result<()> {
 //     todo!()
 // }
 
-pub fn add_rpath(file_path: &Path, new_rpath: &str) -> Result<()> {
+pub fn add_rpath(file_path: &Path, new_rpath: &Path) -> Result<()> {
     let output = Command::new("install_name_tool")
         .arg("-add_rpath")
         .arg(new_rpath)
@@ -290,7 +290,7 @@ pub fn add_rpath(file_path: &Path, new_rpath: &str) -> Result<()> {
         .output()?;
     if output.status.success() {
         log::info!("Rpath added to: {}", file_path.display());
-        log::info!("New rpath is now: {}", new_rpath);
+        log::info!("New rpath is now: {}", new_rpath.display());
     } else {
         let err = String::from_utf8_lossy(&output.stderr);
         if err.contains("file already has LC_RPATH") {
@@ -329,7 +329,7 @@ pub fn sign_binary(file_path: &Path) -> Result<()> {
     }
 }
 
-// DONE
+// [-] Change name to `check_file_type`
 pub fn check_input_file(file_path: &'_ Path) -> Result<BinType<'_>> {
     if !file_path.exists() {
         return Err(anyhow!(
