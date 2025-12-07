@@ -5,62 +5,49 @@ use crate::{
 use anyhow::anyhow;
 use std::path::PathBuf;
 
+pub mod cli;
 pub mod helpers;
 pub mod model;
 
 fn main() -> anyhow::Result<()> {
-    const USAGE: &str = r#"
-    USAGE:
-    bbundler [--binary_path | -bp]  [/binary/path] [--out_dir | -o] [/output/path]
-    "#;
+    let cli = cli::init_cli();
 
-    if std::env::var("RUST_LOG").is_err() {
-        unsafe { std::env::set_var("RUST_LOG", "DEBUG") };
-    }
+    if let Some(log_level) = cli.get_one::<String>("LOG_LEVEL") {
+        unsafe { std::env::set_var("RUST_LOG", log_level) };
+    } else {
+        // Actually we don't need this else block since <log_level>
+        // has a default value of INFO. However, setting it
+        // to INFO is a good idea for safety.
+        unsafe { std::env::set_var("RUST_LOG", "INFO") };
+    };
+
     env_logger::init();
 
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() != 5 {
-        return Err(anyhow!("Missing arguments! {}", USAGE));
-    }
+    let Some(binary_path) = cli.get_one::<String>("BINARY_PATH") else {
+        // TODO: Add the github link to the error.
+        return Err(anyhow!(
+            "Internal Logic Error: Failed to retrieve required argument 'BINARY_PATH' after argument validation. Please report an issue."
+        ));
+    };
 
-    let mut args_iter = args.into_iter().skip(1);
+    let Some(bundle_path) = cli.get_one::<String>("BUNDLE_PATH") else {
+        // TODO: Add the github link to the error.
+        return Err(anyhow!(
+            "Internal Logic Error: Failed to retrieve required argument 'BUNDLE_PATH' after argument validation. Please report an issue."
+        ));
+    };
 
-    let bp_flag = args_iter
-        .next()
-        .ok_or_else(|| anyhow!("Missing argument: [--binary_path | -bp] {}", USAGE))?;
+    let binary_path = PathBuf::from(binary_path);
+    let bundle_path = PathBuf::from(bundle_path);
 
-    let binary_path = args_iter
-        .next()
-        .ok_or_else(|| anyhow!("Missing argument: /binary/path {}", USAGE))?;
-
-    let out_flag = args_iter
-        .next()
-        .ok_or_else(|| anyhow!("Missing argument: [--out_dir | -o] {}", USAGE))?;
-
-    let out_dir = args_iter
-        .next()
-        .ok_or_else(|| anyhow!("Missing argument: /output/path {}", USAGE))?;
-
-    if bp_flag != "--binary_path" && bp_flag != "-bp" {
-        return Err(anyhow!("Missing argument: [--binary_path | -bp] {}", USAGE));
-    }
-
-    if out_flag != "--out_dir" && out_flag != "-o" {
-        return Err(anyhow!("Missing argument: [--out_dir | -o] {}", USAGE));
-    }
-
-    let binary_path = std::path::PathBuf::from(binary_path);
-    let out_dir = PathBuf::from(out_dir);
-
-    if out_dir.exists() && out_dir.is_file() {
+    if bundle_path.exists() && bundle_path.is_file() {
         return Err(anyhow!(
             "Output path is a file!\nOutput path must be a folder."
         ));
     }
 
-    if !out_dir.exists() {
-        let _ = std::fs::create_dir_all(&out_dir)?;
+    if !bundle_path.exists() {
+        let _ = std::fs::create_dir_all(&bundle_path)?;
     }
 
     let res = check_input_file(&binary_path)?;
@@ -70,7 +57,7 @@ fn main() -> anyhow::Result<()> {
         BinType::Dylib(_) => Binary::new(binary_path, false, true)?,
         _ => return Err(anyhow!("Input file not recognized!")),
     };
-    binary.set_dest_folder(&out_dir);
+    binary.set_dest_folder(&bundle_path);
     binary.run()?;
     Ok(())
 }
