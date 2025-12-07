@@ -6,7 +6,9 @@ Macbinbundler is a simple cli tool copies of an executable or a dynamic library 
 
 Macbinbundler can be installed with `Homebrew`:
 
-`brew install dylibbundler`
+`brew tap fisaogullari/homebrew-macbinbundler`
+
+`brew install --HEAD macbinbundler`
 
 If you desire to build yourself, you can simply run:
 
@@ -19,6 +21,14 @@ If you desire to build yourself, you can simply run:
 or
 
 `cargo install --path .`
+
+# Uninstallation
+
+You should run following commands:
+
+`brew uninstall macbinbundler`
+
+`brew untap fisaogullari/homebrew-macbinbundler`
 
 # Usage
 
