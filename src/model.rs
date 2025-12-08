@@ -1,5 +1,6 @@
 use crate::helpers::*;
 use anyhow::{Result, anyhow};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default)]
@@ -31,7 +32,9 @@ impl Binary {
     }
 
     pub fn run(&mut self, dest_folder: &Path, libs_path: Option<&Path>) -> Result<()> {
-        self.get_libs()?;
+        let mut libs_checked = HashSet::<PathBuf>::new();
+
+        self.get_libs(&mut libs_checked)?;
         self.resolve_symlinks()?;
         self.change_install_names_as_rpath()?;
         log::trace!("Binary Structure:\n {:#?}", self);
@@ -70,8 +73,16 @@ impl Binary {
             let _ = lib.set_dest_folder(dest_folder);
         }
     }
+    // [-] TODO: <@executable_path> should be handled as well.
+    fn get_libs(&mut self, libs_checked: &mut HashSet<PathBuf>) -> Result<()> {
+        if libs_checked.contains(&self.file_path) {
+            log::info!(
+                "Library already collected: {}\nSkipping",
+                self.file_path.display()
+            );
+            return Ok(());
+        }
 
-    fn get_libs(&mut self) -> Result<()> {
         let output = get_shared_libs(&self.file_path)?;
         let mut lines = output.lines().skip(1);
 
@@ -124,8 +135,10 @@ impl Binary {
             panic!("Unrecognized library: {}", line);
         }
 
+        libs_checked.insert(self.file_path.clone());
+
         for lib in &mut self.libs {
-            let _ = lib.get_libs()?;
+            let _ = lib.get_libs(libs_checked)?;
         }
 
         Ok(())
@@ -248,7 +261,10 @@ impl Binary {
         Ok(())
     }
 
-    fn sign_all(&self) -> Result<()> {
+    // Signing method based on walking in file system
+    // NOT USED
+    #[allow(dead_code)]
+    fn sign_all_alternative(&self) -> Result<()> {
         let Some(ref base_dest_path) = self.dest_file_path else {
             return Err(anyhow!(
                 "Error while retrieving destionation path of: {}",
@@ -278,6 +294,21 @@ impl Binary {
                 BinType::Dylib(_) => sign_binary(&lib_path)?,
                 _ => log::debug!("Not dynamic library, skipping signing..."),
             };
+        }
+        Ok(())
+    }
+
+    fn sign_all(&self) -> Result<()> {
+        let Some(ref dest_path) = self.dest_file_path else {
+            return Err(anyhow!(
+                "Error while retrieving destionation path of: {}",
+                self.file_path.display()
+            ));
+        };
+        sign_binary(dest_path)?;
+
+        for lib in &self.libs {
+            let _ = lib.sign_all()?;
         }
         Ok(())
     }
