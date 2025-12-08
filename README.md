@@ -6,46 +6,56 @@ Macbinbundler is a simple cli tool copies of an executable or a dynamic library 
 
 Macbinbundler can be installed with `Homebrew`:
 
-`brew tap fisaogullari/homebrew-macbinbundler`
-
-`brew install --HEAD macbinbundler`
+```
+$ brew tap fisaogullari/homebrew-macbinbundler
+$ brew install --HEAD macbinbundler
+```
 
 If you desire to build yourself, you can simply run:
 
-`git clone https://github.com/fisaogullari/macbinbundler.git`
-
-`cd macbinbundler`
-
-`cargo build --release`
+```
+$ git clone https://github.com/fisaogullari/macbinbundler.git
+$ cd macbinbundler
+$ cargo build --release
+```
 
 or (optional for installing to cargo path):
 
-`cargo install --path .`
+```
+$ cargo install --path .
+```
 
 # Uninstallation
 
 You should run following commands:
 
-`brew uninstall macbinbundler`
-
-`brew untap fisaogullari/homebrew-macbinbundler`
+```
+$ brew uninstall macbinbundler
+$ brew untap fisaogullari/homebrew-macbinbundler
+```
 
 # Usage
 
 Macbinbundler is quite simple to use. You can run following command to print out usage info:
 
-`macbinbundler -h`
+```
+$ macbinbundler -h
+```
 
 # Examples
 
 For simple use cases, usage is straightforward.
 For instance following command will copy the executable `pdftoppm` to `~/Projects/foo` folder and all dependant libraries inside of the `~/Projects/foo/libs` folder.
 
-`macbinbundler -i /opt/homebrew/bin/pdftoppm -o ~/Projects/foo`
+```
+$ macbinbundler -i /opt/homebrew/bin/pdftoppm -o ~/Projects/foo
+```
 
 Also custom dependency folder can be given like so (Note: Dependency folder must be relevant to destination folder!):
 
-`macbinbundler -i /opt/homebrew/bin/pdftoppm -o ~/Projects/foo/bar -d ../Frameworks`
+```
+$ macbinbundler -i /opt/homebrew/bin/pdftoppm -o ~/Projects/foo/bar -d ../Frameworks
+```
 
 # Contact
 
