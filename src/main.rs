@@ -1,9 +1,9 @@
 use crate::{
-    helpers::{BinType, check_input_file},
+    helpers::{BinType, check_file_type},
     model::Binary,
 };
 use anyhow::anyhow;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub mod cli;
 pub mod helpers;
@@ -24,51 +24,61 @@ fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     let Some(binary_path) = cli.get_one::<String>("BINARY_PATH") else {
-        // TODO: Add the github link to the error.
         return Err(anyhow!(
-            "Internal Logic Error: Failed to retrieve required argument 'BINARY_PATH' after argument validation. Please report an issue."
+            "Cli Error: Failed to retrieve required argument `BINARY_PATH` after argument validation. Please report an issue on `https://github.com/fisaogullari/macbinbundler`."
         ));
     };
 
-    let Some(bundle_path) = cli.get_one::<String>("BUNDLE_PATH") else {
-        // TODO: Add the github link to the error.
+    let Some(output_path) = cli.get_one::<String>("OUTPUT_PATH") else {
         return Err(anyhow!(
-            "Internal Logic Error: Failed to retrieve required argument 'BUNDLE_PATH' after argument validation. Please report an issue."
+            "Cli Error: Failed to retrieve required argument `OUTPUT_PATH` after argument validation. Please report an issue on `https://github.com/fisaogullari/macbinbundler`."
         ));
     };
 
     let Ok(libs_path) = cli.try_get_one::<String>("LIBS_PATH") else {
-        // TODO: Add the github link to the error.
         return Err(anyhow!(
-            "Internal Logic Error: Failed to retrieve required argument 'LIBS_PATH' after argument validation. Please report an issue."
+            "Cli Error: Failed to retrieve required argument `LIBS_PATH` after argument validation. Please report an issue on `https://github.com/fisaogullari/macbinbundler`."
         ));
     };
 
-    let binary_path = PathBuf::from(binary_path);
-    let bundle_path = PathBuf::from(bundle_path);
+    let create_bundle_path = cli.get_flag("CREATE_OUTPUT_PATH");
 
-    if bundle_path.exists() && bundle_path.is_file() {
+    let binary_path = PathBuf::from(binary_path);
+    let output_path = PathBuf::from(output_path);
+    let libs_path = libs_path.map(|s| Path::new(s));
+
+    if output_path.exists() && output_path.is_file() {
         return Err(anyhow!(
             "Output path is a file!\nOutput path must be a folder."
         ));
     }
 
-    if !bundle_path.exists() {
-        let _ = std::fs::create_dir_all(&bundle_path)?;
+    if !output_path.exists() {
+        if create_bundle_path {
+            let _ = std::fs::create_dir_all(&output_path)?;
+        } else {
+            return Err(anyhow!(
+                "Destination path not exist: {}\nPlease make sure it exists or consider using <-c | --create-bundle-path> flag to create folder!",
+                output_path.display()
+            ));
+        }
     }
 
-    let res = check_input_file(&binary_path)?;
+    let res = check_file_type(&binary_path)?;
 
     let mut binary = match res {
         BinType::Executable(_) => Binary::new(binary_path, true, true)?,
         BinType::Dylib(_) => Binary::new(binary_path, false, true)?,
-        _ => return Err(anyhow!("Input file not recognized!")),
+        _ => {
+            return Err(anyhow!(
+                "Input file not recognized!\nMust be an executable or a dynamic library: {}",
+                binary_path.display()
+            ));
+        }
     };
-    if libs_path.is_some() {
-        binary.run(&bundle_path, Some(std::path::Path::new(libs_path.unwrap())))?;
-    } else {
-        binary.run(&bundle_path, None)?;
-    }
+
+    binary.run(&output_path, libs_path)?;
+
     Ok(())
 }
 

@@ -196,7 +196,7 @@ fn remove_rpath_prefix(value: &str) -> Result<&str> {
 // [-] TEST: Not tested yet.
 // [+] TODO: Not implemented yet.
 pub fn get_id(file_path: &Path) -> Result<String> {
-    let file_path = match check_input_file(file_path)? {
+    let file_path = match check_file_type(file_path)? {
         BinType::Dylib(fp) => fp,
         _ => {
             return Err(anyhow!(
@@ -289,12 +289,15 @@ pub fn add_rpath(file_path: &Path, new_rpath: &Path) -> Result<()> {
         .arg(file_path)
         .output()?;
     if output.status.success() {
-        log::info!("Rpath added to: {}", file_path.display());
-        log::info!("New rpath is now: {}", new_rpath.display());
+        log::debug!(
+            "Rpath added to: {}\nnew rpath: {}",
+            file_path.display(),
+            new_rpath.display()
+        );
     } else {
         let err = String::from_utf8_lossy(&output.stderr);
         if err.contains("file already has LC_RPATH") {
-            log::debug!("Already has rpath: {}", file_path.display());
+            log::debug!("Already has a valid rpath: {}", file_path.display());
             return Ok(());
         }
         return Err(anyhow!(
@@ -318,10 +321,6 @@ pub fn sign_binary(file_path: &Path) -> Result<()> {
         log::info!("Binary singned successfully: {}", file_path.display());
         return Ok(());
     } else {
-        log::error!(
-            "Binary could not singned successfully: {}",
-            file_path.display()
-        );
         return Err(anyhow!(
             "Error while signing binary: {}",
             file_path.display()
@@ -330,7 +329,7 @@ pub fn sign_binary(file_path: &Path) -> Result<()> {
 }
 
 // [-] Change name to `check_file_type`
-pub fn check_input_file(file_path: &'_ Path) -> Result<BinType<'_>> {
+pub fn check_file_type(file_path: &'_ Path) -> Result<BinType<'_>> {
     if !file_path.exists() {
         return Err(anyhow!(
             "Input file is not a valid path: {}",
@@ -346,30 +345,23 @@ pub fn check_input_file(file_path: &'_ Path) -> Result<BinType<'_>> {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     if stdout.contains("Mach-O") && stdout.contains("executable") {
-        log::debug!("Input file is an executable: {}", file_path.display());
+        log::debug!("File is an executable: {}", file_path.display());
         Ok(BinType::Executable(file_path))
     } else if stdout.contains("Mach-O") && stdout.contains("dynamically linked shared") {
-        log::debug!("Input file is a dynamic library: {}", file_path.display());
+        log::debug!("File is a dynamic library: {}", file_path.display());
         Ok(BinType::Dylib(file_path))
     } else if stdout.contains("ar archive") {
-        log::debug!("Input file is a static library: {}", file_path.display());
+        log::debug!("File is a static library: {}", file_path.display());
         Ok(BinType::StaticLib(file_path))
     } else if stdout.contains("Mach-O") && stdout.contains("object") {
-        log::debug!("Input file is an object file: {}", file_path.display());
+        log::debug!("File is an object file: {}", file_path.display());
         Ok(BinType::ObjectFile(file_path))
     } else if stdout.contains("Mach-O") && stdout.contains("universal") {
-        log::debug!(
-            "Input file is a universal binary file: {}",
-            file_path.display()
-        );
+        log::debug!("File is a universal binary file: {}", file_path.display());
         Ok(BinType::UBinary(file_path))
     } else {
-        log::error!("Input file not recognized: {}", file_path.display());
-        log::error!("Stdout: {}", stdout);
-        log::debug!(
-            "File not recognized as a valid library or an executable: {}",
-            file_path.display()
-        );
+        log::warn!("File not recognized: {}", file_path.display());
+        log::warn!("Stdout: {}", stdout);
         Ok(BinType::Unrecognized(file_path))
     }
 }
@@ -393,7 +385,7 @@ mod tests {
         #[test]
         fn test_check_input_file_1() {
             let file = _get_resource_path(EXECUTABLE_BINARY);
-            let res = check_input_file(&file);
+            let res = check_file_type(&file);
             assert!(res.is_ok());
             assert_eq!(res.unwrap(), BinType::Executable(&file));
         }
@@ -401,7 +393,7 @@ mod tests {
         #[test]
         fn test_check_input_file_2() {
             let file = _get_resource_path(DYLIB_BINARY_1);
-            let res = check_input_file(&file);
+            let res = check_file_type(&file);
             assert!(res.is_ok());
             assert_eq!(res.unwrap(), BinType::Dylib(&file));
         }
@@ -409,14 +401,14 @@ mod tests {
         #[test]
         fn test_check_input_file_3() {
             let file = _get_resource_path(STATICLIB_BINARY);
-            let res = check_input_file(&file);
+            let res = check_file_type(&file);
             assert!(res.is_ok());
             assert_eq!(res.unwrap(), BinType::StaticLib(&file));
         }
         #[test]
         fn test_check_input_file_4() {
             let file = PathBuf::from(INVALID_BINARY);
-            let res = check_input_file(&file);
+            let res = check_file_type(&file);
             assert!(res.is_err());
         }
     }

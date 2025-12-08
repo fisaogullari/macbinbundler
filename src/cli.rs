@@ -11,18 +11,18 @@ pub fn init_cli() -> clap::ArgMatches {
             .help("Path of the binary\ndesired to be bundled."),
     );
     let parser = parser.arg(
-        clap::Arg::new("BUNDLE_PATH")
+        clap::Arg::new("OUTPUT_PATH")
             .short('o')
             .long("output")
             .required(true)
-            .help("Path of the destination folder"),
+            .help("Path of the destination folder for bundle"),
     );
 
     let parser = parser.arg(
         clap::Arg::new("LIBS_PATH")
             .short('d')
             .long("deps-path")
-            .help("Custom path for libraries.\n<Relative to the destination folder>"),
+            .help("Custom folder path for libraries.\n<Relative to the destination folder>"),
     );
     let parser = parser.arg(
         clap::Arg::new("LOG_LEVEL")
@@ -30,6 +30,14 @@ pub fn init_cli() -> clap::ArgMatches {
             .long("log")
             .default_value("INFO")
             .help("[TRACE, INFO, DEBUG, WARNING, ERROR]"),
+    );
+
+    let parser = parser.arg(
+        clap::Arg::new("CREATE_OUTPUT_PATH")
+            .short('c')
+            .long("create-output-path")
+            .action(clap::ArgAction::SetTrue)
+            .help("Create destination folder path if not exist."),
     );
 
     parser.get_matches()
