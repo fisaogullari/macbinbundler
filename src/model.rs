@@ -36,7 +36,7 @@ impl Binary {
 
         self.get_libs(&mut libs_checked)?;
         self.resolve_symlinks()?;
-        self.change_install_names_as_rpath()?;
+        self.calculate_rpaths()?;
         log::trace!("Binary Structure:\n {:#?}", self);
         self.set_libs_path(libs_path);
         self.set_dest_folder(dest_folder);
@@ -60,12 +60,29 @@ impl Binary {
 
     fn set_dest_folder(&mut self, dest_folder: &Path) {
         if self.is_base {
+            log::debug!(
+                "Destination folder set for: {}\nto: {}",
+                self.file_path.display(),
+                dest_folder.display()
+            );
             self.dest_folder_path = Some(dest_folder.to_path_buf());
         } else {
             if let Some(ref libs_path) = self.libs_path {
-                self.dest_folder_path = Some(dest_folder.join(libs_path));
+                let dest_folder = dest_folder.join(libs_path);
+                log::debug!(
+                    "Destination folder set for: {}\nto: {}",
+                    self.file_path.display(),
+                    dest_folder.display()
+                );
+                self.dest_folder_path = Some(dest_folder);
             } else {
-                self.dest_folder_path = Some(dest_folder.join("libs"));
+                let dest_folder = dest_folder.join("libs");
+                log::debug!(
+                    "Destination folder set for: {}\nto: {}",
+                    self.file_path.display(),
+                    dest_folder.display()
+                );
+                self.dest_folder_path = Some(dest_folder);
             }
         }
 
@@ -76,7 +93,7 @@ impl Binary {
     // [-] TODO: <@executable_path> should be handled as well.
     fn get_libs(&mut self, libs_checked: &mut HashSet<PathBuf>) -> Result<()> {
         if libs_checked.contains(&self.file_path) {
-            log::info!(
+            log::debug!(
                 "Library already collected: {}\nSkipping",
                 self.file_path.display()
             );
@@ -112,7 +129,7 @@ impl Binary {
             log::debug!("Processing library: {}", line);
 
             if line.starts_with("/usr/lib") || line.starts_with("/System/Library") {
-                log::debug!("Skipping system library: {}", line);
+                log::info!("Skipping system library: {}", line);
                 continue;
             }
 
@@ -145,7 +162,6 @@ impl Binary {
     }
 
     fn resolve_symlinks(&mut self) -> Result<()> {
-        log::trace!("Checking if symlink for: {}", self.file_path.display());
         if self.file_path.is_symlink() {
             log::debug!("Symlink found for: {}", self.file_path.display());
             let real_path = self.file_path.canonicalize()?;
@@ -160,14 +176,12 @@ impl Binary {
     }
 
     fn copy_to_dest(&mut self) -> Result<()> {
-        log::debug!("Copying: {}", self.file_path.display());
         let Some(ref dest_folder_path) = self.dest_folder_path else {
             return Err(anyhow!(
                 "Error while retrieving destionation path of: {}",
                 self.file_path.display()
             ));
         };
-        log::debug!("Destination folder path: {}", dest_folder_path.display());
 
         log::debug!("Creating folder: {}", dest_folder_path.display());
         std::fs::create_dir_all(dest_folder_path)?;
@@ -185,6 +199,11 @@ impl Binary {
 
         if !dest_file_path.exists() {
             let _ = std::fs::copy(&self.file_path, &dest_file_path)?;
+            log::info!(
+                "Copying: {}\nto: {}",
+                self.file_path.display(),
+                dest_file_path.display()
+            );
         }
 
         for lib in &mut self.libs {
@@ -202,10 +221,7 @@ impl Binary {
         };
         if !self.is_executable {
             let Some(ref parent_rpath) = self.rpath else {
-                return Err(anyhow!(
-                    "No rpath path found for: {}",
-                    self.file_path.display()
-                ));
+                return Err(anyhow!("No rpath found for: {}", self.file_path.display()));
             };
             fix_id(dest_file_path, parent_rpath)?;
         }
@@ -229,6 +245,12 @@ impl Binary {
                     ));
                 };
                 fix_install_name(dest_file_path, old_install_name, child_rpath)?;
+                log::debug!(
+                    "Install name fixed for: {}\nold: {}\nnew: {}",
+                    dest_file_path.display(),
+                    old_install_name,
+                    child_rpath
+                );
             };
         }
 
@@ -238,7 +260,7 @@ impl Binary {
         Ok(())
     }
 
-    fn change_install_names_as_rpath(&mut self) -> Result<()> {
+    fn calculate_rpaths(&mut self) -> Result<()> {
         if !self.is_executable {
             let Some(rpath) = self
                 .file_path
@@ -250,13 +272,11 @@ impl Binary {
                     self.file_path.display()
                 ));
             };
-            log::debug!("Rpath calculated for: {}", self.file_path.display());
-            log::debug!("Rpath calculated to: {}", rpath);
             self.rpath = Some(rpath);
         }
 
         for lib in &mut self.libs {
-            let _ = lib.change_install_names_as_rpath()?;
+            let _ = lib.calculate_rpaths()?;
         }
         Ok(())
     }
@@ -290,7 +310,7 @@ impl Binary {
 
         for lib in std::fs::read_dir(dest_folder_path.join(libs_path))? {
             let lib_path = lib?.path();
-            match check_input_file(&lib_path)? {
+            match check_file_type(&lib_path)? {
                 BinType::Dylib(_) => sign_binary(&lib_path)?,
                 _ => log::debug!("Not dynamic library, skipping signing..."),
             };
