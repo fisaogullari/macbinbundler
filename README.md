@@ -59,4 +59,4 @@ $ macbinbundler -i /opt/homebrew/bin/pdftoppm -o ~/Projects/foo/bar -d ../Framew
 
 # Contact
 
-If you want to contact me, you can create an issue or simple send an email to `fisaogullari@gmail.com`.
+If you want to contact me, you can create an issue or simply send an email to `fisaogullari@gmail.com`.
